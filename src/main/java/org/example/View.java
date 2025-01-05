@@ -67,8 +67,6 @@ public class View {
 
         frame.add(resultPanel, BorderLayout.CENTER);
 
-
-
         frame.setVisible(true);
     }
 
@@ -82,7 +80,6 @@ public class View {
         }
 
         try {
-            System.out.println("Running model: " + selectedModel + " with data: " + selectedData);
             controller = new Controller("org.example." + selectedModel);
             controller.readDataFrom("data/" + selectedData).runModel();
 
@@ -162,7 +159,7 @@ public class View {
         String[] headers = lines[0].split("\t");
         tableModel.setColumnIdentifiers(headers);
 
-        NumberFormat numberFormat = NumberFormat.getInstance(Locale.GERMANY);
+        NumberFormat numberFormat = NumberFormat.getInstance(Locale.FRANCE);
         numberFormat.setMaximumFractionDigits(3);
 
         for (int i = 1; i < lines.length; i++) {
