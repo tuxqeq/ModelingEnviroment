@@ -13,7 +13,7 @@ import java.util.*;
 public class Controller {
     private Object model;
     private String modelName;
-    private int LL; // Number of years for calculations
+    private int LL;
     private Map<String, double[]> variables = new HashMap<>();
 
     public Controller(String modelName) throws InstantiationException, IllegalAccessException, ClassNotFoundException {
@@ -24,32 +24,30 @@ public class Controller {
 
     public Controller readDataFrom(String fname) throws IOException, IllegalAccessException {
         try (BufferedReader br = new BufferedReader(new FileReader(fname))) {
-            String header = br.readLine(); // Read the header row
+            String header = br.readLine();
             String[] tokens = header.split("\\s+");
             if (!tokens[0].equals("LATA")) {
                 throw new IllegalArgumentException("File must start with 'LATA'");
             }
 
-            LL = tokens.length - 1; // Calculate the number of years
+            LL = tokens.length - 1;
             double[] years = new double[LL];
             for (int i = 0; i < LL; i++) {
                 years[i] = Double.parseDouble(tokens[i + 1]);
             }
             variables.put("LATA", years);
 
-            // Parse the remaining lines
             String line;
             while ((line = br.readLine()) != null) {
                 tokens = line.split("\\s+");
                 String varName = tokens[0];
                 double[] values = new double[LL];
-                Arrays.fill(values, Double.NaN); // Default values as NaN
+                Arrays.fill(values, Double.NaN);
 
                 for (int i = 1; i < tokens.length; i++) {
                     values[i - 1] = Double.parseDouble(tokens[i]);
                 }
 
-                // Fill missing values with the last provided value
                 for (int i = 1; i < LL; i++) {
                     if (Double.isNaN(values[i])) {
                         values[i] = values[i - 1];
@@ -88,15 +86,12 @@ public class Controller {
         }
 
         try {
-            System.out.println("trying to run the model method run...");
             model.getClass().getMethod("run").invoke(model);
-            System.out.println("Model run successfully");
 
-            // After running the model, fetch updated variable values
             for (Field field : fields) {
                 if (field.isAnnotationPresent(Bind.class)) {
                     field.setAccessible(true);
-                    Object fieldValue = field.get(model); // Fetch the value of the field
+                    Object fieldValue = field.get(model);
                     if (fieldValue instanceof double[]) {
                         variables.put(field.getName(), (double[]) fieldValue);
                     }
@@ -109,45 +104,35 @@ public class Controller {
         return this;
     }
 
-    public Controller runScriptFromFile(String fname) {
-        // Initialize the script engine manager
+    public void runScriptFromFile(String fname) {
         ScriptEngineManager manager = new ScriptEngineManager();
-        ScriptEngine engine = manager.getEngineByName("groovy"); // Use "groovy" or "nashorn" as per your scripting needs
+        ScriptEngine engine = manager.getEngineByName("groovy");
 
-        // Bind variables from the model to the script
         try {
             bindVariablesToScriptEngine(engine);
 
-            // Read and execute the script
             File scriptFile = new File(fname);
             engine.eval(new FileReader(scriptFile));
 
-            // Collect any new variables created by the script
             collectScriptResults(engine);
 
-            return this;
         } catch (Exception e) {
             throw new RuntimeException("Error running script from file: " + fname, e);
         }
 
     }
 
-    public Controller runScript(String script) {
-        // Initialize the script engine manager
+    public void runScript(String script) {
         ScriptEngineManager manager = new ScriptEngineManager();
         ScriptEngine engine = manager.getEngineByName("groovy");
 
-        // Bind variables from the model to the script
         try {
             bindVariablesToScriptEngine(engine);
 
-            // Execute the provided script
             engine.eval(script);
 
-            // Collect any new variables created by the script
             collectScriptResults(engine);
 
-            return this;
         } catch (ScriptException | IllegalAccessException e) {
             throw new RuntimeException("Error running script: " + e.getMessage(), e);
         }
@@ -156,7 +141,6 @@ public class Controller {
     private void bindVariablesToScriptEngine(ScriptEngine engine) throws IllegalAccessException {
         Field[] fields = model.getClass().getDeclaredFields();
 
-        // Bind @Bind-annotated fields
         for (Field field : fields) {
             if (field.isAnnotationPresent(Bind.class)) {
                 field.setAccessible(true);
@@ -164,19 +148,15 @@ public class Controller {
             }
         }
 
-        // Bind additional variables like LL
         engine.put("LL", LL);
     }
 
     private void collectScriptResults(ScriptEngine engine) {
-        System.out.println("Collecting results from the script...");
         engine.getBindings(javax.script.ScriptContext.ENGINE_SCOPE).forEach((key, value) -> {
             if (value instanceof double[]) {
                 variables.put(key, (double[]) value);
-                System.out.println("Collected variable: " + key + " -> " + Arrays.toString((double[]) value));
             }
         });
-        // Append the LATA row
 
     }
     public String getResultsAsTsv() {
@@ -192,7 +172,6 @@ public class Controller {
             Class<?> modelClass = Class.forName(modelName);
             Field[] fields = modelClass.getDeclaredFields();
 
-            // Use reflection to retrieve @Bind annotated fields
             for (Field field : fields) {
                 if (field.isAnnotationPresent(Bind.class)) {
                     field.setAccessible(true);
@@ -210,11 +189,9 @@ public class Controller {
                 }
             }
 
-            // Include any dynamically added variables (not present in fields)
             for (String key : variables.keySet()) {
                 boolean fieldExists = false;
 
-                // Check if the key corresponds to any @Bind annotated field
                 for (Field field : fields) {
                     if (field.isAnnotationPresent(Bind.class) && field.getName().equals(key)) {
                         fieldExists = true;
@@ -222,7 +199,6 @@ public class Controller {
                     }
                 }
 
-                // If the variable is not in the fields and it's not "LATA", include it
                 if (!fieldExists && !key.equalsIgnoreCase("LATA")) {
                     sb.append(key);
                     double[] values = variables.get(key);

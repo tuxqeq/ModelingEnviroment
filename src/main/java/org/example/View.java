@@ -1,11 +1,14 @@
 package org.example;
 
 import javax.swing.*;
+import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.io.File;
 import java.io.IOException;
+import java.text.NumberFormat;
+import java.util.Locale;
 
 public class View {
 
@@ -16,23 +19,19 @@ public class View {
     private Controller controller;
 
     public View() {
-        // Set up the main window
         frame = new JFrame("Modelling Environment");
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        frame.setSize(1200, 600);
+        frame.setSize(800, 600);
         frame.setLayout(new BorderLayout());
 
-        // === Model and Data Selection Panel ===
         JPanel selectionPanel = new JPanel(new BorderLayout());
         selectionPanel.setBorder(BorderFactory.createTitledBorder("Select model and data"));
 
-        // Left: Model selection list
-        String[] models = {"Model1", "Model2"};
+        String[] models = {"Model1"};
         modelList = new JList<>(models);
         modelList.setBorder(BorderFactory.createTitledBorder("Models"));
         selectionPanel.add(new JScrollPane(modelList), BorderLayout.WEST);
 
-        // Right: Data selection list
         String folderPath = "data";
         File folder = new File(folderPath);
         String[] dataFiles = folder.list((current, name) -> new File(current, name).isFile());
@@ -46,10 +45,10 @@ public class View {
 
         frame.add(selectionPanel, BorderLayout.WEST);
 
-        // === Results Table ===
         JPanel resultPanel = new JPanel(new BorderLayout());
         tableModel = new DefaultTableModel();
         resultTable = new JTable(tableModel);
+        resultTable.setGridColor(Color.BLACK);
         JScrollPane tableScrollPane = new JScrollPane(resultTable);
         tableScrollPane.setBorder(BorderFactory.createTitledBorder("Results"));
 
@@ -70,7 +69,6 @@ public class View {
 
 
 
-        // Show the window
         frame.setVisible(true);
     }
 
@@ -84,13 +82,11 @@ public class View {
         }
 
         try {
-            // Initialize Controller with the selected model
             System.out.println("Running model: " + selectedModel + " with data: " + selectedData);
             controller = new Controller("org.example." + selectedModel);
             controller.readDataFrom("data/" + selectedData).runModel();
 
-            // Display results
-            populateTable(controller.getResultsAsTsv());
+            displayTable(controller.getResultsAsTsv());
 
         } catch (IOException ex) {
             ex.printStackTrace();
@@ -117,10 +113,9 @@ public class View {
         if (returnValue == JFileChooser.APPROVE_OPTION) {
             File selectedFile = fileChooser.getSelectedFile();
             try {
-                controller = new Controller("org.example." + selectedModel); // Use a default model if needed
+                controller = new Controller("org.example." + selectedModel);
                 controller.readDataFrom("data/" + selectedData).runModel().runScriptFromFile(selectedFile.getAbsolutePath());
-                JOptionPane.showMessageDialog(frame, "Script executed successfully.", "Success", JOptionPane.INFORMATION_MESSAGE);
-                populateTable(controller.getResultsAsTsv());
+                displayTable(controller.getResultsAsTsv());
             } catch (Exception ex) {
                 ex.printStackTrace();
                 JOptionPane.showMessageDialog(frame, "Error running script: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
@@ -147,10 +142,9 @@ public class View {
         if (result == JOptionPane.OK_OPTION) {
             String script = scriptArea.getText();
             try {
-                controller = new Controller("org.example." + selectedModel); // Use a default model if needed
+                controller = new Controller("org.example." + selectedModel);
                 controller.readDataFrom("data/" + selectedData).runModel().runScript(script);
-                JOptionPane.showMessageDialog(frame, "Script executed successfully.", "Success", JOptionPane.INFORMATION_MESSAGE);
-                populateTable(controller.getResultsAsTsv());
+                displayTable(controller.getResultsAsTsv());
             } catch (Exception ex) {
                 ex.printStackTrace();
                 JOptionPane.showMessageDialog(frame, "Error running script: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
@@ -158,22 +152,56 @@ public class View {
         }
     }
 
-
-    private void populateTable(String resultsTsv) {
-        tableModel.setRowCount(0); // Clear the table
-        tableModel.setColumnCount(0); // Clear columns
+    private void displayTable(String resultsTsv) {
+        tableModel.setRowCount(0);
+        tableModel.setColumnCount(0);
 
         String[] lines = resultsTsv.split("\n");
         if (lines.length == 0) return;
 
-        // Set headers from the first line
         String[] headers = lines[0].split("\t");
         tableModel.setColumnIdentifiers(headers);
 
-        // Add data rows
+        NumberFormat numberFormat = NumberFormat.getInstance(Locale.GERMANY);
+        numberFormat.setMaximumFractionDigits(3);
+
         for (int i = 1; i < lines.length; i++) {
             String[] rowData = lines[i].split("\t");
-            tableModel.addRow(rowData);
+            String[] formattedRowData = new String[rowData.length];
+
+            String rowName = rowData[0];
+            formattedRowData[0] = rowName;
+
+            boolean shouldRound = rowName.equals("twKI") || rowName.equals("twKS") || rowName.equals("twINW") ||
+                    rowName.equals("twEKS") || rowName.equals("twIMP");
+
+            for (int j = 1; j < rowData.length; j++) {
+                try {
+                    double value = Double.parseDouble(rowData[j]);
+
+                    if (!shouldRound && value > 2) {
+                        value = Math.round(value * 10.0) / 10.0;
+                    }
+
+                    String formattedValue = numberFormat.format(value);
+                    formattedRowData[j] = formattedValue;
+                } catch (NumberFormatException e) {
+                    formattedRowData[j] = rowData[j];
+                }
+            }
+
+            tableModel.addRow(formattedRowData);
+        }
+
+        alignTableColumns(resultTable);
+    }
+
+    private void alignTableColumns(JTable table) {
+        DefaultTableCellRenderer rightAlignRenderer = new DefaultTableCellRenderer();
+        rightAlignRenderer.setHorizontalAlignment(SwingConstants.RIGHT);
+
+        for (int i = 1; i < table.getColumnCount(); i++) {
+            table.getColumnModel().getColumn(i).setCellRenderer(rightAlignRenderer);
         }
     }
 

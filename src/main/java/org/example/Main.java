@@ -4,19 +4,13 @@ import java.io.IOException;
 public class Main {
     public static void main(String[] args) {
         Controller ctl = null;
-        String datadir = "data";
+        String dataDir = "data";
         try {
             ctl = new Controller("org.example.Model1");
-            ctl.readDataFrom(datadir + "/data1.txt").runModel();
+            ctl.readDataFrom(dataDir + "data1.txt").runModel();
             String res = ctl.getResultsAsTsv();
             System.out.println(res);
-        } catch (InstantiationException e) {
-            throw new RuntimeException(e);
-        } catch (IllegalAccessException e) {
-            throw new RuntimeException(e);
-        } catch (ClassNotFoundException e) {
-            throw new RuntimeException(e);
-        } catch (IOException e) {
+        } catch (InstantiationException | IllegalAccessException | ClassNotFoundException | IOException e) {
             throw new RuntimeException(e);
         }
 
