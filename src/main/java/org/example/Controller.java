@@ -1,6 +1,10 @@
 package org.example;
 
+import javax.script.ScriptEngine;
+import javax.script.ScriptEngineManager;
+import javax.script.ScriptException;
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
 import java.lang.reflect.Field;
@@ -106,35 +110,121 @@ public class Controller {
     }
 
     public Controller runScriptFromFile(String fname) {
+        // Initialize the script engine manager
+        ScriptEngineManager manager = new ScriptEngineManager();
+        ScriptEngine engine = manager.getEngineByName("groovy"); // Use "groovy" or "nashorn" as per your scripting needs
 
-        return null;
+        // Bind variables from the model to the script
+        try {
+            bindVariablesToScriptEngine(engine);
+
+            // Read and execute the script
+            File scriptFile = new File(fname);
+            engine.eval(new FileReader(scriptFile));
+
+            // Collect any new variables created by the script
+            collectScriptResults(engine);
+
+            return this;
+        } catch (Exception e) {
+            throw new RuntimeException("Error running script from file: " + fname, e);
+        }
+
     }
 
     public Controller runScript(String script) {
+        // Initialize the script engine manager
+        ScriptEngineManager manager = new ScriptEngineManager();
+        ScriptEngine engine = manager.getEngineByName("groovy");
 
-        return null;
+        // Bind variables from the model to the script
+        try {
+            bindVariablesToScriptEngine(engine);
+
+            // Execute the provided script
+            engine.eval(script);
+
+            // Collect any new variables created by the script
+            collectScriptResults(engine);
+
+            return this;
+        } catch (ScriptException | IllegalAccessException e) {
+            throw new RuntimeException("Error running script: " + e.getMessage(), e);
+        }
     }
 
+    private void bindVariablesToScriptEngine(ScriptEngine engine) throws IllegalAccessException {
+        Field[] fields = model.getClass().getDeclaredFields();
+
+        // Bind @Bind-annotated fields
+        for (Field field : fields) {
+            if (field.isAnnotationPresent(Bind.class)) {
+                field.setAccessible(true);
+                engine.put(field.getName(), field.get(model));
+            }
+        }
+
+        // Bind additional variables like LL
+        engine.put("LL", LL);
+    }
+
+    private void collectScriptResults(ScriptEngine engine) {
+        System.out.println("Collecting results from the script...");
+        engine.getBindings(javax.script.ScriptContext.ENGINE_SCOPE).forEach((key, value) -> {
+            if (value instanceof double[]) {
+                variables.put(key, (double[]) value);
+                System.out.println("Collected variable: " + key + " -> " + Arrays.toString((double[]) value));
+            }
+        });
+        // Append the LATA row
+
+    }
     public String getResultsAsTsv() {
         StringBuilder sb = new StringBuilder();
 
-        // Append the LATA row
         sb.append("LATA");
         for (int i = 2015; i < 2015 + LL; i++) {
             sb.append("\t").append(i);
         }
         sb.append("\n");
 
-        // Use reflection to get the fields in order they were declarated
         try {
             Class<?> modelClass = Class.forName(modelName);
             Field[] fields = modelClass.getDeclaredFields();
 
+            // Use reflection to retrieve @Bind annotated fields
             for (Field field : fields) {
-                if (field.isAnnotationPresent(Bind.class) && variables.containsKey(field.getName())) {
+                if (field.isAnnotationPresent(Bind.class)) {
+                    field.setAccessible(true);
                     String key = field.getName();
-                    sb.append(key);
 
+                    if (variables.containsKey(key) && !key.equalsIgnoreCase("LATA")) {
+                        sb.append(key);
+
+                        double[] values = variables.get(key);
+                        for (double value : values) {
+                            sb.append("\t").append(value);
+                        }
+                        sb.append("\n");
+                    }
+                }
+            }
+
+            // Include any dynamically added variables (not present in fields)
+            for (String key : variables.keySet()) {
+                boolean fieldExists = false;
+
+                // Check if the key corresponds to any @Bind annotated field
+                for (Field field : fields) {
+                    if (field.isAnnotationPresent(Bind.class) && field.getName().equals(key)) {
+                        fieldExists = true;
+                        break;
+                    }
+                }
+
+                // If the variable is not in the fields and it's not "LATA", include it
+                if (!fieldExists && !key.equalsIgnoreCase("LATA")) {
+                    sb.append(key);
                     double[] values = variables.get(key);
                     for (double value : values) {
                         sb.append("\t").append(value);
@@ -142,6 +232,7 @@ public class Controller {
                     sb.append("\n");
                 }
             }
+
         } catch (ClassNotFoundException e) {
             throw new RuntimeException("Model class not found: " + modelName, e);
         }

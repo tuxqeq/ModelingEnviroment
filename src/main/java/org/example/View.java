@@ -19,7 +19,7 @@ public class View {
         // Set up the main window
         frame = new JFrame("Modelling Environment");
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        frame.setSize(800, 600);
+        frame.setSize(1200, 600);
         frame.setLayout(new BorderLayout());
 
         // === Model and Data Selection Panel ===
@@ -33,7 +33,9 @@ public class View {
         selectionPanel.add(new JScrollPane(modelList), BorderLayout.WEST);
 
         // Right: Data selection list
-        String[] dataFiles = {"data1.txt", "data2.txt"};
+        String folderPath = "data";
+        File folder = new File(folderPath);
+        String[] dataFiles = folder.list((current, name) -> new File(current, name).isFile());
         dataList = new JList<>(dataFiles);
         dataList.setBorder(BorderFactory.createTitledBorder("Data Files"));
         selectionPanel.add(new JScrollPane(dataList), BorderLayout.EAST);
@@ -100,6 +102,14 @@ public class View {
     }
 
     private void onRunScriptFromFile(ActionEvent e) {
+        String selectedModel = modelList.getSelectedValue();
+        String selectedData = dataList.getSelectedValue();
+
+        if (selectedModel == null || selectedData == null) {
+            JOptionPane.showMessageDialog(frame, "Please select both a model and a data file.", "Error", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
         JFileChooser fileChooser = new JFileChooser(new File("/Users/tuxqeq/Documents/ITJ/ModelingEnviroment"));
         fileChooser.setDialogTitle("Select Script File");
         int returnValue = fileChooser.showOpenDialog(frame);
@@ -107,9 +117,10 @@ public class View {
         if (returnValue == JFileChooser.APPROVE_OPTION) {
             File selectedFile = fileChooser.getSelectedFile();
             try {
-                controller = new Controller("org.example.Model1"); // Use a default model if needed
-                controller.runScriptFromFile(selectedFile.getAbsolutePath());
+                controller = new Controller("org.example." + selectedModel); // Use a default model if needed
+                controller.readDataFrom("data/" + selectedData).runModel().runScriptFromFile(selectedFile.getAbsolutePath());
                 JOptionPane.showMessageDialog(frame, "Script executed successfully.", "Success", JOptionPane.INFORMATION_MESSAGE);
+                populateTable(controller.getResultsAsTsv());
             } catch (Exception ex) {
                 ex.printStackTrace();
                 JOptionPane.showMessageDialog(frame, "Error running script: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
@@ -118,6 +129,14 @@ public class View {
     }
 
     private void onCreateAndRunAdHocScript(ActionEvent e) {
+        String selectedModel = modelList.getSelectedValue();
+        String selectedData = dataList.getSelectedValue();
+
+        if (selectedModel == null || selectedData == null) {
+            JOptionPane.showMessageDialog(frame, "Please select both a model and a data file.", "Error", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
         JTextArea scriptArea = new JTextArea(20, 50);
         scriptArea.setLineWrap(true);
         scriptArea.setWrapStyleWord(true);
@@ -128,9 +147,10 @@ public class View {
         if (result == JOptionPane.OK_OPTION) {
             String script = scriptArea.getText();
             try {
-                controller = new Controller("org.example.Model1"); // Use a default model if needed
-                controller.runScript(script);
+                controller = new Controller("org.example." + selectedModel); // Use a default model if needed
+                controller.readDataFrom("data/" + selectedData).runModel().runScript(script);
                 JOptionPane.showMessageDialog(frame, "Script executed successfully.", "Success", JOptionPane.INFORMATION_MESSAGE);
+                populateTable(controller.getResultsAsTsv());
             } catch (Exception ex) {
                 ex.printStackTrace();
                 JOptionPane.showMessageDialog(frame, "Error running script: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
